@@ -3,19 +3,83 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #1a1b26;
+  --foreground: #c0caf5;
+  --canvas-bg: #1a1b26;
+  --toolbar-bg: #1f2335;
+  --toolbar-hover: #292e42;
+  --toolbar-active: #414868;
+  --toolbar-border: #292e42;
+  --text-primary: #c0caf5;
+  --text-secondary: #565f89;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #1a1b26;
+    --foreground: #c0caf5;
   }
 }
 
+/* Prevent iOS Safari from zooming */
+input, textarea, select, button {
+  font-size: 16px;
+}
+
+/* Disable touch callout */
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Enable text selection in inputs */
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Prevent scrolling when touching the canvas */
 body {
-  color: var(--foreground);
+  overscroll-behavior: none;
+  overflow: hidden;
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--toolbar-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--toolbar-active);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Utility classes */
+.touch-none {
+  touch-action: none;
+}
+
+.touch-pan-x {
+  touch-action: pan-x;
+}
+
+.touch-pan-y {
+  touch-action: pan-y;
+}
+
+.touch-manipulation {
+  touch-action: manipulation;
 }
