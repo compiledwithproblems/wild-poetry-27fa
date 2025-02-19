@@ -8,7 +8,6 @@ import {
   PencilSquareIcon,
   CheckIcon,
   XMarkIcon,
-  ChevronUpIcon,
   ChevronDownIcon
 } from '@heroicons/react/24/outline';
 

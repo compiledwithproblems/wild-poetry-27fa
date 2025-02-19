@@ -5,8 +5,7 @@ import {
   MinusIcon,
   Square2StackIcon,
   ArrowsPointingOutIcon,
-  PhotoIcon,
-  ArrowsPointingInIcon
+  PhotoIcon
 } from '@heroicons/react/24/outline';
 
 const tools: { id: Tool; icon: typeof PencilIcon; label: string }[] = [

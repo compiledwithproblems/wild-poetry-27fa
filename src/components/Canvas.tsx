@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useCanvasContext } from '@/context/CanvasContext';
 import { Point } from '@/types/tools';
 import Pressure from 'pressure';
@@ -7,6 +7,18 @@ import { getStroke } from 'perfect-freehand';
 interface CanvasProps {
   width: number;
   height: number;
+}
+
+// Add iPad-specific types at the top
+interface ExtendedPointerEvent extends Omit<PointerEvent, 'tangentialPressure' | 'tiltX' | 'tiltY'> {
+  tangentialPressure: number | undefined;
+  tiltX: number | undefined;
+  tiltY: number | undefined;
+}
+
+interface ExtendedCSSProperties extends CSSStyleDeclaration {
+  WebkitTouchCallout: 'none' | 'default';
+  WebkitUserSelect: 'none' | 'text' | 'auto';
 }
 
 // Configuration for Perfect Freehand
@@ -21,12 +33,12 @@ const getPerfectFreehandOptions = (width: number) => ({
 
 // Helper function to check if input is likely from Apple Pencil
 const isApplePencil = (e: PointerEvent): boolean => {
+  const event = e as ExtendedPointerEvent;
   return (
     e.pointerType === 'pen' &&
-    // Check for iPad-specific pointer properties
-    typeof (e as any).tangentialPressure !== 'undefined' &&
-    typeof (e as any).tiltX !== 'undefined' &&
-    typeof (e as any).tiltY !== 'undefined'
+    typeof event.tangentialPressure !== 'undefined' &&
+    typeof event.tiltX !== 'undefined' &&
+    typeof event.tiltY !== 'undefined'
   );
 };
 
@@ -84,6 +96,112 @@ export default function Canvas({ width, height }: CanvasProps) {
   const [isErasing, setIsErasing] = useState(false);
   const [erasedStrokes, setErasedStrokes] = useState<number[]>([]);
 
+  const startNewStroke = useCallback((x: number, y: number, pressure: number) => {
+    if (currentTool !== 'pencil') return;
+    
+    const ctx = activeCanvasRef.current?.getContext('2d');
+    if (!ctx) return;
+
+    // Add first point to current stroke
+    const point = { x, y, pressure };
+    currentStrokeRef.current = [point];
+    
+    // Clear active canvas and draw the initial point
+    ctx.clearRect(0, 0, width, height);
+    drawStroke(ctx, [point], strokeWidth, strokeColor);
+  }, [currentTool, strokeColor, strokeWidth, width, height]);
+
+  const continueStroke = useCallback((x: number, y: number, pressure: number) => {
+    if (currentTool !== 'pencil') return;
+    
+    const ctx = activeCanvasRef.current?.getContext('2d');
+    if (!ctx) return;
+
+    // Add point to current stroke
+    const point = { x, y, pressure };
+    currentStrokeRef.current.push(point);
+    
+    // Clear active canvas and redraw current stroke
+    ctx.clearRect(0, 0, width, height);
+    drawStroke(ctx, currentStrokeRef.current, strokeWidth, strokeColor);
+  }, [currentTool, strokeColor, strokeWidth, width, height]);
+
+  const finalizeStroke = useCallback(() => {
+    if (currentTool !== 'pencil' || currentStrokeRef.current.length < 2) return;
+
+    // Create new stroke object
+    const newStroke = {
+      id: Date.now(),
+      tool: currentTool,
+      points: currentStrokeRef.current,
+      color: strokeColor,
+      width: strokeWidth
+    };
+
+    // Add stroke to context (this will trigger a redraw of the base canvas)
+    addStroke(newStroke);
+
+    // Clear the active canvas
+    const ctx = activeCanvasRef.current?.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, width, height);
+    }
+
+    currentStrokeRef.current = [];
+  }, [currentTool, strokeColor, strokeWidth, addStroke, width, height]);
+
+  const checkErasedStrokes = useCallback((x: number, y: number) => {
+    const eraserRadius = strokeWidth * 10;
+    
+    // Debug visualization
+    const ctx = activeCanvasRef.current?.getContext('2d');
+    if (ctx) {
+      // Save current state
+      ctx.save();
+      
+      // Draw eraser circle
+      ctx.beginPath();
+      ctx.arc(x, y, eraserRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+      ctx.stroke();
+      
+      // Draw points being checked
+      currentStrokes.forEach(stroke => {
+        stroke.points.forEach(point => {
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 2, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+          ctx.fill();
+        });
+      });
+      
+      // Restore state
+      ctx.restore();
+    }
+    
+    const newErasedStrokes = currentStrokes
+      .filter(stroke => {
+        // Check if any point in the stroke is within eraser radius
+        const shouldErase = stroke.points.some(point => {
+          const dx = x - point.x;
+          const dy = y - point.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          return distance <= eraserRadius;
+        });
+        return shouldErase;
+      })
+      .map(stroke => stroke.id);
+
+    if (newErasedStrokes.length > 0) {
+      setErasedStrokes(prev => [...new Set([...prev, ...newErasedStrokes])]);
+    }
+
+    // Schedule a redraw to clear debug visualization
+    requestAnimationFrame(() => {
+      redrawCanvas(activeCanvasRef.current, erasedStrokes);
+    });
+  }, [currentStrokes, strokeWidth, erasedStrokes, redrawCanvas]);
+
   // Setup canvases
   useEffect(() => {
     const baseCanvas = baseCanvasRef.current;
@@ -100,7 +218,7 @@ export default function Canvas({ width, height }: CanvasProps) {
 
     // Initial draw of all strokes on base canvas
     redrawCanvas(baseCanvas, []);
-  }, [width, height]);
+  }, [width, height, redrawCanvas]);
   
   useEffect(() => {
     const activeCanvas = activeCanvasRef.current;
@@ -185,7 +303,7 @@ export default function Canvas({ width, height }: CanvasProps) {
       }
     };
 
-    const handlePointerUp = (e: PointerEvent) => {
+    const handlePointerUp = () => {
       if (!isPencilDrawing.current && currentTool === 'pencil') {
         return;
       }
@@ -216,8 +334,9 @@ export default function Canvas({ width, height }: CanvasProps) {
     activeCanvas.style.touchAction = 'none';
     
     // Enable Apple Pencil specific features
-    (activeCanvas.style as any).WebkitTouchCallout = 'none';
-    (activeCanvas.style as any).WebkitUserSelect = 'none';
+    const style = activeCanvas.style as unknown as ExtendedCSSProperties;
+    style.WebkitTouchCallout = 'none';
+    style.WebkitUserSelect = 'none';
 
     return () => {
       activeCanvas.removeEventListener('pointerdown', handlePointerDown);
@@ -226,129 +345,26 @@ export default function Canvas({ width, height }: CanvasProps) {
       activeCanvas.removeEventListener('pointerout', handlePointerUp);
       activeCanvas.removeEventListener('pointercancel', handlePointerUp);
     };
-  }, [currentTool, isErasing, strokeWidth, strokeColor, currentStrokes, erasedStrokes, isDrawing]);
+  }, [
+    currentTool,
+    isErasing,
+    strokeWidth,
+    strokeColor,
+    currentStrokes,
+    erasedStrokes,
+    isDrawing,
+    checkErasedStrokes,
+    continueStroke,
+    finalizeStroke,
+    removeStrokes,
+    setIsDrawing,
+    startNewStroke
+  ]);
 
   // Redraw base canvas when strokes change
   useEffect(() => {
     redrawCanvas(baseCanvasRef.current, isErasing ? erasedStrokes : []);
   }, [currentStrokes, erasedStrokes, redrawCanvas, isErasing]);
-
-  const startNewStroke = (x: number, y: number, pressure: number) => {
-    if (currentTool !== 'pencil') return;
-    
-    const ctx = activeCanvasRef.current?.getContext('2d');
-    if (!ctx) return;
-
-    // Add first point to current stroke
-    const point = { x, y, pressure };
-    currentStrokeRef.current = [point];
-    
-    // Clear active canvas and draw the initial point
-    ctx.clearRect(0, 0, width, height);
-    drawStroke(ctx, [point], strokeWidth, strokeColor);
-  };
-
-  const continueStroke = (x: number, y: number, pressure: number) => {
-    if (currentTool !== 'pencil') return;
-    
-    const ctx = activeCanvasRef.current?.getContext('2d');
-    if (!ctx) return;
-
-    // Add point to current stroke
-    const point = { x, y, pressure };
-    currentStrokeRef.current.push(point);
-    
-    // Clear active canvas and redraw current stroke
-    ctx.clearRect(0, 0, width, height);
-    drawStroke(ctx, currentStrokeRef.current, strokeWidth, strokeColor);
-  };
-
-  const finalizeStroke = () => {
-    if (currentTool !== 'pencil' || currentStrokeRef.current.length < 2) return;
-
-    // Create new stroke object
-    const newStroke = {
-      id: Date.now(),
-      tool: currentTool,
-      points: currentStrokeRef.current,
-      color: strokeColor,
-      width: strokeWidth
-    };
-
-    // Add stroke to context (this will trigger a redraw of the base canvas)
-    addStroke(newStroke);
-
-    // Clear the active canvas
-    const ctx = activeCanvasRef.current?.getContext('2d');
-    if (ctx) {
-      ctx.clearRect(0, 0, width, height);
-    }
-
-    currentStrokeRef.current = [];
-  };
-
-  const checkErasedStrokes = (x: number, y: number) => {
-    const eraserRadius = strokeWidth * 10;
-    console.log('Eraser check at:', { x, y, eraserRadius, currentStrokes: currentStrokes.length });
-    
-    // Debug visualization
-    const ctx = activeCanvasRef.current?.getContext('2d');
-    if (ctx) {
-      // Save current state
-      ctx.save();
-      
-      // Draw eraser circle
-      ctx.beginPath();
-      ctx.arc(x, y, eraserRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-      ctx.stroke();
-      
-      // Draw points being checked
-      currentStrokes.forEach(stroke => {
-        stroke.points.forEach(point => {
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, 2, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
-          ctx.fill();
-        });
-      });
-      
-      // Restore state
-      ctx.restore();
-    }
-    
-    const newErasedStrokes = currentStrokes
-      .filter(stroke => {
-        // Check if any point in the stroke is within eraser radius
-        const shouldErase = stroke.points.some(point => {
-          const dx = x - point.x;
-          const dy = y - point.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          const withinRadius = distance <= eraserRadius;
-          if (withinRadius) {
-            console.log('Found point to erase:', { strokeId: stroke.id, distance, point });
-          }
-          return withinRadius;
-        });
-        return shouldErase;
-      })
-      .map(stroke => stroke.id);
-
-    console.log('Strokes to erase:', newErasedStrokes);
-
-    if (newErasedStrokes.length > 0) {
-      setErasedStrokes(prev => {
-        const updated = [...new Set([...prev, ...newErasedStrokes])];
-        console.log('Updated erased strokes:', updated);
-        return updated;
-      });
-    }
-
-    // Schedule a redraw to clear debug visualization
-    requestAnimationFrame(() => {
-      redrawCanvas(activeCanvasRef.current, erasedStrokes);
-    });
-  };
 
   return (
     <div className="relative" style={{ width: `${width}px`, height: `${height}px` }}>
