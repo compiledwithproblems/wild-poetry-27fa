@@ -224,7 +224,6 @@ export default function Canvas({ width, height }: CanvasProps) {
     const activeCanvas = activeCanvasRef.current;
     if (!activeCanvas) return;
 
-    // Initialize Pressure.js on the active canvas
     Pressure.set(activeCanvas, {
       change: (force: number) => {
         if (!isDrawing || currentTool !== 'pencil' || !isPencilDrawing.current) return;
