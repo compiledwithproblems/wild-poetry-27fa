@@ -314,6 +314,28 @@ export default function Canvas({ width, height }: CanvasProps) {
     canvas.addEventListener('pointerout', handlePointerUp);
     canvas.addEventListener('pointercancel', handlePointerUp);
 
+    // Add touch event handlers to prevent text selection
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      // Prevent text selection popup
+      if (document.getSelection()) {
+        document.getSelection()?.empty();
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+      e.preventDefault();
+    }, { passive: false });
+
+    // Prevent text selection during drawing
+    canvas.addEventListener('selectstart', (e) => {
+      e.preventDefault();
+    });
+
     canvas.style.touchAction = 'none';
     
     const style = canvas.style as unknown as ExtendedCSSProperties;
@@ -326,6 +348,10 @@ export default function Canvas({ width, height }: CanvasProps) {
       canvas.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('pointerout', handlePointerUp);
       canvas.removeEventListener('pointercancel', handlePointerUp);
+      canvas.removeEventListener('touchstart', (e) => e.preventDefault());
+      canvas.removeEventListener('touchmove', (e) => e.preventDefault());
+      canvas.removeEventListener('touchend', (e) => e.preventDefault());
+      canvas.removeEventListener('selectstart', (e) => e.preventDefault());
     };
   }, [
     width,
