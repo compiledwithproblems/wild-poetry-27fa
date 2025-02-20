@@ -12,6 +12,7 @@ export interface Stroke {
   points: Point[];
   color: string;
   width: number;
+  path: string;
 }
 
 export interface Image {

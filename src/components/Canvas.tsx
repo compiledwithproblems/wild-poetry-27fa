@@ -9,6 +9,24 @@ interface CanvasProps {
   height: number;
 }
 
+// Helper function to convert a stroke to SVG path
+const getSvgPathFromStroke = (points: Point[], width: number) => {
+  const freehandPoints = points.map(p => [p.x, p.y, p.pressure]);
+  const stroke = getStroke(freehandPoints, {
+    size: width,
+    thinning: 0.5,
+    smoothing: 0.5,
+    streamline: 0.5,
+    easing: (t: number) => t,
+    last: true,
+  });
+
+  if (!stroke.length) return '';
+
+  const [first, ...rest] = stroke;
+  return `M ${first[0]} ${first[1]} ${rest.map((point) => `L ${point[0]} ${point[1]}`).join(' ')}`;
+};
+
 // Add iPad-specific types at the top
 interface ExtendedPointerEvent extends Omit<PointerEvent, 'tangentialPressure' | 'tiltX' | 'tiltY'> {
   tangentialPressure: number | undefined;
@@ -76,10 +94,9 @@ const drawStroke = (
 };
 
 export default function Canvas({ width, height }: CanvasProps) {
-  const baseCanvasRef = useRef<HTMLCanvasElement>(null);
-  const activeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const currentStrokeRef = useRef<Point[]>([]);
-  const isPencilDrawing = useRef(false); // Track if current stroke is from Apple Pencil
+  const isPencilDrawing = useRef(false);
   
   const { 
     currentTool,
@@ -88,7 +105,6 @@ export default function Canvas({ width, height }: CanvasProps) {
     setIsDrawing,
     addStroke,
     currentStrokes,
-    redrawCanvas,
     removeStrokes,
     isDrawing
   } = useCanvasContext();
@@ -99,31 +115,49 @@ export default function Canvas({ width, height }: CanvasProps) {
   const startNewStroke = useCallback((x: number, y: number, pressure: number) => {
     if (currentTool !== 'pencil') return;
     
-    const ctx = activeCanvasRef.current?.getContext('2d');
+    const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
 
     // Add first point to current stroke
     const point = { x, y, pressure };
     currentStrokeRef.current = [point];
     
-    // Clear active canvas and draw the initial point
+    // Clear canvas and start new stroke
     ctx.clearRect(0, 0, width, height);
-    drawStroke(ctx, [point], strokeWidth, strokeColor);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth * pressure;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
   }, [currentTool, strokeColor, strokeWidth, width, height]);
 
   const continueStroke = useCallback((x: number, y: number, pressure: number) => {
     if (currentTool !== 'pencil') return;
     
-    const ctx = activeCanvasRef.current?.getContext('2d');
+    const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
 
     // Add point to current stroke
     const point = { x, y, pressure };
     currentStrokeRef.current.push(point);
     
-    // Clear active canvas and redraw current stroke
+    // Clear and redraw current stroke
     ctx.clearRect(0, 0, width, height);
-    drawStroke(ctx, currentStrokeRef.current, strokeWidth, strokeColor);
+    ctx.beginPath();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth * pressure;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    const [first, ...rest] = currentStrokeRef.current;
+    ctx.moveTo(first.x, first.y);
+    rest.forEach(point => {
+      ctx.lineTo(point.x, point.y);
+    });
+    ctx.stroke();
   }, [currentTool, strokeColor, strokeWidth, width, height]);
 
   const finalizeStroke = useCallback(() => {
@@ -135,14 +169,15 @@ export default function Canvas({ width, height }: CanvasProps) {
       tool: currentTool,
       points: currentStrokeRef.current,
       color: strokeColor,
-      width: strokeWidth
+      width: strokeWidth,
+      path: getSvgPathFromStroke(currentStrokeRef.current, strokeWidth)
     };
 
-    // Add stroke to context (this will trigger a redraw of the base canvas)
+    // Add stroke to context
     addStroke(newStroke);
 
-    // Clear the active canvas
-    const ctx = activeCanvasRef.current?.getContext('2d');
+    // Clear the canvas
+    const ctx = canvasRef.current?.getContext('2d');
     if (ctx) {
       ctx.clearRect(0, 0, width, height);
     }
@@ -152,32 +187,6 @@ export default function Canvas({ width, height }: CanvasProps) {
 
   const checkErasedStrokes = useCallback((x: number, y: number) => {
     const eraserRadius = strokeWidth * 10;
-    
-    // Debug visualization
-    const ctx = activeCanvasRef.current?.getContext('2d');
-    if (ctx) {
-      // Save current state
-      ctx.save();
-      
-      // Draw eraser circle
-      ctx.beginPath();
-      ctx.arc(x, y, eraserRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-      ctx.stroke();
-      
-      // Draw points being checked
-      currentStrokes.forEach(stroke => {
-        stroke.points.forEach(point => {
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, 2, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
-          ctx.fill();
-        });
-      });
-      
-      // Restore state
-      ctx.restore();
-    }
     
     const newErasedStrokes = currentStrokes
       .filter(stroke => {
@@ -195,40 +204,20 @@ export default function Canvas({ width, height }: CanvasProps) {
     if (newErasedStrokes.length > 0) {
       setErasedStrokes(prev => [...new Set([...prev, ...newErasedStrokes])]);
     }
+  }, [currentStrokes, strokeWidth]);
 
-    // Schedule a redraw to clear debug visualization
-    requestAnimationFrame(() => {
-      redrawCanvas(activeCanvasRef.current, erasedStrokes);
-    });
-  }, [currentStrokes, strokeWidth, erasedStrokes, redrawCanvas]);
-
-  // Setup canvases
   useEffect(() => {
-    const baseCanvas = baseCanvasRef.current;
-    const activeCanvas = activeCanvasRef.current;
-    if (!baseCanvas || !activeCanvas) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    // Set up base canvas
-    baseCanvas.width = width;
-    baseCanvas.height = height;
+    canvas.width = width;
+    canvas.height = height;
 
-    // Set up active canvas
-    activeCanvas.width = width;
-    activeCanvas.height = height;
-
-    // Initial draw of all strokes on base canvas
-    redrawCanvas(baseCanvas, []);
-  }, [width, height, redrawCanvas]);
-  
-  useEffect(() => {
-    const activeCanvas = activeCanvasRef.current;
-    if (!activeCanvas) return;
-
-    Pressure.set(activeCanvas, {
+    // Initialize Pressure.js
+    Pressure.set(canvas, {
       change: (force: number) => {
         if (!isDrawing || currentTool !== 'pencil' || !isPencilDrawing.current) return;
         
-        // Scale pressure to desired range (0.1 to 1)
         const pressure = 0.1 + (force * 0.9);
         
         if (currentStrokeRef.current.length > 0) {
@@ -253,15 +242,13 @@ export default function Canvas({ width, height }: CanvasProps) {
       only: 'touch'
     });
     
-    // Set up pointer events for Apple Pencil
     const handlePointerDown = (e: PointerEvent) => {
-      // Only proceed if it's the Apple Pencil or if we're using the eraser
       if (!isApplePencil(e) && currentTool === 'pencil') {
         return;
       }
 
       e.preventDefault();
-      const rect = activeCanvas.getBoundingClientRect();
+      const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       const pressure = e.pressure || 0.5;
@@ -284,13 +271,12 @@ export default function Canvas({ width, height }: CanvasProps) {
     };
 
     const handlePointerMove = (e: PointerEvent) => {
-      // Only proceed if we started with the Apple Pencil or if we're using the eraser
       if (!isPencilDrawing.current && currentTool === 'pencil') {
         return;
       }
 
       e.preventDefault();
-      const rect = activeCanvas.getBoundingClientRect();
+      const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       const pressure = e.pressure || 0.5;
@@ -322,29 +308,28 @@ export default function Canvas({ width, height }: CanvasProps) {
       currentStrokeRef.current = [];
     };
 
-    // Add pointer event listeners
-    activeCanvas.addEventListener('pointerdown', handlePointerDown);
-    activeCanvas.addEventListener('pointermove', handlePointerMove);
-    activeCanvas.addEventListener('pointerup', handlePointerUp);
-    activeCanvas.addEventListener('pointerout', handlePointerUp);
-    activeCanvas.addEventListener('pointercancel', handlePointerUp);
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', handlePointerUp);
+    canvas.addEventListener('pointerout', handlePointerUp);
+    canvas.addEventListener('pointercancel', handlePointerUp);
 
-    // Set touch-action to none to prevent scrolling while drawing
-    activeCanvas.style.touchAction = 'none';
+    canvas.style.touchAction = 'none';
     
-    // Enable Apple Pencil specific features
-    const style = activeCanvas.style as unknown as ExtendedCSSProperties;
+    const style = canvas.style as unknown as ExtendedCSSProperties;
     style.WebkitTouchCallout = 'none';
     style.WebkitUserSelect = 'none';
 
     return () => {
-      activeCanvas.removeEventListener('pointerdown', handlePointerDown);
-      activeCanvas.removeEventListener('pointermove', handlePointerMove);
-      activeCanvas.removeEventListener('pointerup', handlePointerUp);
-      activeCanvas.removeEventListener('pointerout', handlePointerUp);
-      activeCanvas.removeEventListener('pointercancel', handlePointerUp);
+      canvas.removeEventListener('pointerdown', handlePointerDown);
+      canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointerup', handlePointerUp);
+      canvas.removeEventListener('pointerout', handlePointerUp);
+      canvas.removeEventListener('pointercancel', handlePointerUp);
     };
   }, [
+    width,
+    height,
     currentTool,
     isErasing,
     strokeWidth,
@@ -360,26 +345,33 @@ export default function Canvas({ width, height }: CanvasProps) {
     startNewStroke
   ]);
 
-  // Redraw base canvas when strokes change
-  useEffect(() => {
-    redrawCanvas(baseCanvasRef.current, isErasing ? erasedStrokes : []);
-  }, [currentStrokes, erasedStrokes, redrawCanvas, isErasing]);
-
   return (
     <div className="relative" style={{ width: `${width}px`, height: `${height}px` }}>
+      {/* SVG layer for completed strokes */}
+      <svg
+        className="absolute top-0 left-0 bg-[#1a1b26]"
+        width={width}
+        height={height}
+        style={{ pointerEvents: 'none' }}
+      >
+        {currentStrokes
+          .filter(stroke => !erasedStrokes.includes(stroke.id))
+          .map(stroke => (
+            <path
+              key={stroke.id}
+              d={stroke.path}
+              stroke={stroke.color}
+              strokeWidth={stroke.width}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+      </svg>
+
+      {/* Canvas only for active stroke */}
       <canvas
-        ref={baseCanvasRef}
-        className="absolute top-0 left-0 bg-[#1a1b26] touch-none"
-        style={{ 
-          width: `${width}px`, 
-          height: `${height}px`,
-          touchAction: 'none',
-          WebkitUserSelect: 'none',
-          userSelect: 'none',
-        }}
-      />
-      <canvas
-        ref={activeCanvasRef}
+        ref={canvasRef}
         className="absolute top-0 left-0 touch-none"
         style={{ 
           width: `${width}px`, 
