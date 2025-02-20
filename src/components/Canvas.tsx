@@ -352,7 +352,12 @@ export default function Canvas({ width, height }: CanvasProps) {
         className="absolute top-0 left-0 bg-[#1a1b26]"
         width={width}
         height={height}
-        style={{ pointerEvents: 'none' }}
+        style={{ 
+          pointerEvents: 'none',
+          WebkitTapHighlightColor: 'transparent',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+        }}
       >
         {currentStrokes
           .filter(stroke => !erasedStrokes.includes(stroke.id))
@@ -379,6 +384,7 @@ export default function Canvas({ width, height }: CanvasProps) {
           touchAction: 'none',
           WebkitUserSelect: 'none',
           userSelect: 'none',
+          WebkitTapHighlightColor: 'transparent',
         }}
       />
     </div>
