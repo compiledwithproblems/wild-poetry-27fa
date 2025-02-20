@@ -14,7 +14,7 @@ export default function Home() {
       <main className="min-h-screen bg-[#1a1b26] overflow-hidden">
         <div className="relative w-full h-screen flex items-center justify-center">
           <Canvas width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
-          <Toolbar />
+          <Toolbar width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
           <NoteList />
         </div>
       </main>

@@ -1,10 +1,10 @@
 import { useCanvasContext } from '@/context/CanvasContext';
-import { TOKYO_NIGHT_COLORS, Tool } from '@/types/tools';
+import { TOKYO_NIGHT_COLORS, Tool, Stroke } from '@/types/tools';
 import { 
   PencilIcon,
   MinusIcon,
   Square2StackIcon,
-  ArrowsPointingOutIcon,
+  ArrowDownTrayIcon,
   PhotoIcon
 } from '@heroicons/react/24/outline';
 
@@ -16,15 +16,62 @@ const tools: { id: Tool; icon: typeof PencilIcon; label: string }[] = [
 
 const strokeWidths = [1, 2, 4, 6, 8];
 
-export default function Toolbar() {
+interface ToolbarProps {
+  width?: number;
+  height?: number;
+}
+
+export default function Toolbar({ width = 1920, height = 1080 }: ToolbarProps) {
   const { 
     currentTool, 
     setCurrentTool, 
     strokeColor, 
     setStrokeColor,
     strokeWidth,
-    setStrokeWidth
+    setStrokeWidth,
+    currentStrokes,
+    currentNote
   } = useCanvasContext();
+
+  const handleExport = () => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Set canvas size
+    canvas.width = width;
+    canvas.height = height;
+
+    // Draw background
+    ctx.fillStyle = '#1a1b26';
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw all strokes
+    currentStrokes.forEach(stroke => {
+      const path = new Path2D(stroke.path);
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.width;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke(path);
+    });
+
+    // Generate filename from note title or use default
+    const filename = currentNote?.title 
+      ? `${currentNote.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.png`
+      : 'canvas-note.png';
+
+    // Convert to PNG and download
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  };
 
   return (
     <div className="fixed left-4 top-1/2 -translate-y-1/2 flex flex-col gap-4 bg-[#1f2335] p-2 rounded-lg shadow-lg">
@@ -52,7 +99,7 @@ export default function Toolbar() {
       <div className="w-full h-px bg-[#292e42]" />
 
       {/* Colors */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 items-center">
         {Object.entries(TOKYO_NIGHT_COLORS).map(([name, color]) => (
           <button
             key={name}
@@ -101,11 +148,11 @@ export default function Toolbar() {
           <PhotoIcon className="w-6 h-6" />
         </button>
         <button
-          onClick={() => {/* TODO: Open shape library */}}
+          onClick={handleExport}
           className="p-2 rounded-lg text-[#565f89] hover:bg-[#292e42] transition-colors"
-          title="Shape Library"
+          title="Export as PNG"
         >
-          <ArrowsPointingOutIcon className="w-6 h-6" />
+          <ArrowDownTrayIcon className="w-6 h-6" />
         </button>
       </div>
     </div>
