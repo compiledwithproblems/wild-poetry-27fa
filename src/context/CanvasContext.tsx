@@ -72,7 +72,13 @@ interface CanvasContextType {
 
 const CanvasContext = createContext<CanvasContextType | undefined>(undefined);
 
-export function CanvasProvider({ children }: { children: ReactNode }) {
+export function CanvasProvider({ 
+  children,
+  initialNoteId
+}: { 
+  children: ReactNode;
+  initialNoteId?: string;
+}) {
   const [currentTool, setCurrentTool] = useState<Tool>('pencil');
   const [strokeColor, setStrokeColor] = useState<string>(TOKYO_NIGHT_COLORS.white);
   const [strokeWidth, setStrokeWidth] = useState(2);
@@ -81,6 +87,13 @@ export function CanvasProvider({ children }: { children: ReactNode }) {
   const [currentNote, setCurrentNote] = useState<Note | null>(null);
   const [isErasing, setIsErasing] = useState(false);
   const [erasedStrokes, setErasedStrokes] = useState<number[]>([]);
+
+  // Load initial note if provided
+  useEffect(() => {
+    if (initialNoteId) {
+      loadNote(initialNoteId);
+    }
+  }, [initialNoteId]);
 
   const handleSetCurrentTool = useCallback((tool: Tool) => {
     console.log('CanvasContext: Changing tool from', currentTool, 'to', tool);

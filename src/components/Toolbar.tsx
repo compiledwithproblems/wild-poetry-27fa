@@ -38,9 +38,17 @@ export default function Toolbar({ width = 1920, height = 1080 }: ToolbarProps) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size
-    canvas.width = width;
-    canvas.height = height;
+    // Set export canvas size (820px width, maintain aspect ratio)
+    const exportWidth = 820;
+    const scale = exportWidth / width;
+    const exportHeight = Math.round(height * scale);
+
+    // Set canvas size to export dimensions
+    canvas.width = exportWidth;
+    canvas.height = exportHeight;
+
+    // Scale the context to maintain proportions
+    ctx.scale(scale, scale);
 
     // Draw background
     ctx.fillStyle = '#1a1b26';

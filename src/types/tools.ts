@@ -35,6 +35,13 @@ export interface Note {
   elements: CanvasElement[];
   createdAt: string;
   updatedAt: string;
+  tags: Tag[];
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: keyof typeof TOKYO_NIGHT_COLORS;
 }
 
 // Tokyo Night theme colors
