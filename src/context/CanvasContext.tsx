@@ -164,6 +164,10 @@ export function CanvasProvider({
       elements: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      tags: [],
+      template: {
+        id: 'blank'
+      }
     };
 
     // Save to localStorage
