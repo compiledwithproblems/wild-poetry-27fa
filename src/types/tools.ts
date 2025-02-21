@@ -86,16 +86,16 @@ export const TEMPLATES: Template[] = [
     svgPattern: `
       <pattern id="daily-tasks" patternUnits="userSpaceOnUse" width="100%" height="100%">
         <!-- Date section at top -->
-        <rect x="40" y="30" width="200" height="2" fill="${TOKYO_NIGHT_COLORS.grey}" fill-opacity="0.4"/>
+        <rect x="40" y="130" width="200" height="2" fill="${TOKYO_NIGHT_COLORS.grey}" fill-opacity="0.4"/>
         
         <!-- Task lines with circles -->
         ${Array.from({ length: 15 }, (_, i) => `
-          <circle cx="50" cy="${140 + i * 45}" r="6" stroke="${TOKYO_NIGHT_COLORS.grey}" stroke-width="1" fill="none" opacity="0.35"/>
-          <line x1="80" y1="${140 + i * 45}" x2="90%" y2="${140 + i * 45}" stroke="${TOKYO_NIGHT_COLORS.grey}" stroke-width="1" opacity="0.25"/>
+          <circle cx="50" cy="${240 + i * 45}" r="6" stroke="${TOKYO_NIGHT_COLORS.grey}" stroke-width="1" fill="none" opacity="0.35"/>
+          <line x1="80" y1="${240 + i * 45}" x2="90%" y2="${240 + i * 45}" stroke="${TOKYO_NIGHT_COLORS.grey}" stroke-width="1" opacity="0.25"/>
         `).join('')}
         
         <!-- Date text guide -->
-        <text x="40" y="20" fill="${TOKYO_NIGHT_COLORS.grey}" opacity="0.45" font-size="14">Date:</text>
+        <text x="40" y="120" fill="${TOKYO_NIGHT_COLORS.grey}" opacity="0.45" font-size="14">Date:</text>
       </pattern>
       <rect width="100%" height="100%" fill="url(#daily-tasks)"/>
     `,

@@ -33,14 +33,14 @@ export default function Toolbar({ width = 1920, height = 1080 }: ToolbarProps) {
     currentNote
   } = useCanvasContext();
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     // Set export canvas size (A4 proportions at 150 DPI)
-    const exportWidth = 1240; // ~8.27 inches at 150 DPI
-    const exportHeight = 1754; // ~11.7 inches at 150 DPI
+    const exportHeight = 1240; // Make height the smaller dimension
+    const exportWidth = 1754; // Make width the larger dimension
     const scale = exportWidth / width;
 
     // Set canvas size to export dimensions
@@ -54,54 +54,8 @@ export default function Toolbar({ width = 1920, height = 1080 }: ToolbarProps) {
     ctx.fillStyle = '#1a1b26';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw template if exists
-    if (currentNote?.template?.id) {
-      const templateSvg = TEMPLATES.find((t: Template) => t.id === currentNote.template.id)?.svgPattern;
-      if (templateSvg) {
-        // Create a temporary SVG element
-        const svg = new Blob([templateSvg], { type: 'image/svg+xml;charset=utf-8' });
-        const URL = window.URL || window.webkitURL || window;
-        const svgUrl = URL.createObjectURL(svg);
-
-        // Create an Image to draw the SVG
-        const img = new Image();
-        img.src = svgUrl;
-
-        // Wait for image to load before proceeding with export
-        img.onload = () => {
-          // Draw the template
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // Draw all strokes
-          currentStrokes.forEach(stroke => {
-            const path = new Path2D(stroke.path);
-            ctx.strokeStyle = stroke.color;
-            ctx.lineWidth = stroke.width;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.stroke(path);
-          });
-
-          // Generate filename from note title or use default
-          const filename = currentNote?.title 
-            ? `${currentNote.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.png`
-            : 'canvas-note.png';
-
-          // Convert to PNG and download
-          canvas.toBlob((blob) => {
-            if (!blob) return;
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
-            URL.revokeObjectURL(svgUrl);
-          }, 'image/png');
-        };
-      }
-    } else {
-      // If no template, just draw strokes
+    // Function to draw strokes
+    const drawStrokes = () => {
       currentStrokes.forEach(stroke => {
         const path = new Path2D(stroke.path);
         ctx.strokeStyle = stroke.color;
@@ -110,8 +64,10 @@ export default function Toolbar({ width = 1920, height = 1080 }: ToolbarProps) {
         ctx.lineJoin = 'round';
         ctx.stroke(path);
       });
+    };
 
-      // Generate filename and export
+    // Function to export the canvas
+    const exportCanvas = () => {
       const filename = currentNote?.title 
         ? `${currentNote.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.png`
         : 'canvas-note.png';
@@ -125,6 +81,54 @@ export default function Toolbar({ width = 1920, height = 1080 }: ToolbarProps) {
         a.click();
         URL.revokeObjectURL(url);
       }, 'image/png');
+    };
+
+    // Draw template if exists
+    if (currentNote?.template?.id) {
+      const templateSvg = TEMPLATES.find((t: Template) => t.id === currentNote.template.id)?.svgPattern;
+      if (templateSvg) {
+        try {
+          // Create a complete SVG document
+          const svgDoc = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+              ${templateSvg}
+            </svg>
+          `;
+          
+          // Convert SVG to data URL
+          const svgBlob = new Blob([svgDoc], { type: 'image/svg+xml;charset=utf-8' });
+          const svgUrl = URL.createObjectURL(svgBlob);
+
+          // Create an Image to draw the SVG
+          const img = new Image();
+          
+          // Create a promise to handle the image loading
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = svgUrl;
+          });
+
+          // Draw the template
+          ctx.drawImage(img, 0, 0, width, height);
+          URL.revokeObjectURL(svgUrl);
+          
+          // Draw strokes and export
+          drawStrokes();
+          exportCanvas();
+        } catch (error) {
+          console.error('Error drawing template:', error);
+          // If template fails, still draw strokes and export
+          drawStrokes();
+          exportCanvas();
+        }
+      } else {
+        drawStrokes();
+        exportCanvas();
+      }
+    } else {
+      drawStrokes();
+      exportCanvas();
     }
   };
 
