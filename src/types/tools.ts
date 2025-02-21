@@ -80,14 +80,50 @@ export const TEMPLATES: Template[] = [
     svgPattern: '',
   },
   {
-    id: 'college-ruled',
-    name: 'College Ruled',
-    description: 'Traditional lined paper with college rule spacing',
+    id: 'daily-tasks',
+    name: 'Daily Tasks',
+    description: 'Simple template for daily task planning',
     svgPattern: `
-      <pattern id="college-ruled" patternUnits="userSpaceOnUse" width="100%" height="25">
-        <line x1="0" y1="24" x2="100%" y2="24" stroke="#565f89" stroke-width="0.5" stroke-opacity="0.2"/>
+      <pattern id="daily-tasks" patternUnits="userSpaceOnUse" width="100%" height="100%">
+        <!-- Date section at top -->
+        <rect x="40" y="30" width="200" height="2" fill="${TOKYO_NIGHT_COLORS.grey}" fill-opacity="0.4"/>
+        
+        <!-- Task lines with circles -->
+        ${Array.from({ length: 15 }, (_, i) => `
+          <circle cx="50" cy="${140 + i * 45}" r="6" stroke="${TOKYO_NIGHT_COLORS.grey}" stroke-width="1" fill="none" opacity="0.35"/>
+          <line x1="80" y1="${140 + i * 45}" x2="90%" y2="${140 + i * 45}" stroke="${TOKYO_NIGHT_COLORS.grey}" stroke-width="1" opacity="0.25"/>
+        `).join('')}
+        
+        <!-- Date text guide -->
+        <text x="40" y="20" fill="${TOKYO_NIGHT_COLORS.grey}" opacity="0.45" font-size="14">Date:</text>
       </pattern>
-      <rect width="100%" height="100%" fill="url(#college-ruled)"/>
+      <rect width="100%" height="100%" fill="url(#daily-tasks)"/>
+    `,
+  },
+  {
+    id: 'grid',
+    name: 'Grid',
+    description: 'Graph paper style grid for technical notes',
+    svgPattern: `
+      <pattern id="grid" patternUnits="userSpaceOnUse" width="25" height="25">
+        <!-- Small grid -->
+        <path d="M 25 0 L 0 0 0 25" fill="none" stroke="${TOKYO_NIGHT_COLORS.grey}" stroke-width="0.5" stroke-opacity="0.2"/>
+        
+        <!-- Larger grid every 5 cells -->
+        <path d="M 0 0 L 25 0 L 25 25 L 0 25 L 0 0" fill="none" stroke="${TOKYO_NIGHT_COLORS.grey}" stroke-width="0.5" stroke-opacity="0.3"/>
+      </pattern>
+      <rect width="100%" height="100%" fill="url(#grid)"/>
+    `,
+  },
+  {
+    id: 'dot-grid',
+    name: 'Dot Grid',
+    description: 'Subtle dot pattern for bullet journaling',
+    svgPattern: `
+      <pattern id="dot-grid" patternUnits="userSpaceOnUse" width="25" height="25">
+        <circle cx="12.5" cy="12.5" r="1" fill="${TOKYO_NIGHT_COLORS.grey}" fill-opacity="0.35"/>
+      </pattern>
+      <rect width="100%" height="100%" fill="url(#dot-grid)"/>
     `,
   },
 ]; 
