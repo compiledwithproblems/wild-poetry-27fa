@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useCanvasContext } from '@/context/CanvasContext';
-import { Point } from '@/types/tools';
+import { Point, TEMPLATES } from '@/types/tools';
 import Pressure from 'pressure';
 import { getStroke } from 'perfect-freehand';
 
@@ -106,7 +106,8 @@ export default function Canvas({ width, height }: CanvasProps) {
     addStroke,
     currentStrokes,
     removeStrokes,
-    isDrawing
+    isDrawing,
+    currentNote
   } = useCanvasContext();
   
   const [isErasing, setIsErasing] = useState(false);
@@ -373,7 +374,7 @@ export default function Canvas({ width, height }: CanvasProps) {
 
   return (
     <div className="relative" style={{ width: `${width}px`, height: `${height}px` }}>
-      {/* SVG layer for completed strokes */}
+      {/* Template layer */}
       <svg
         className="absolute top-0 left-0 bg-[#1a1b26]"
         width={width}
@@ -383,6 +384,25 @@ export default function Canvas({ width, height }: CanvasProps) {
           WebkitTapHighlightColor: 'transparent',
           WebkitUserSelect: 'none',
           userSelect: 'none',
+        }}
+        dangerouslySetInnerHTML={{
+          __html: currentNote?.template?.id ? 
+            TEMPLATES.find(t => t.id === currentNote.template.id)?.svgPattern || '' 
+            : ''
+        }}
+      />
+
+      {/* SVG layer for completed strokes */}
+      <svg
+        className="absolute top-0 left-0"
+        width={width}
+        height={height}
+        style={{ 
+          pointerEvents: 'none',
+          WebkitTapHighlightColor: 'transparent',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          backgroundColor: 'transparent',
         }}
       >
         {currentStrokes
@@ -400,7 +420,7 @@ export default function Canvas({ width, height }: CanvasProps) {
           ))}
       </svg>
 
-      {/* Canvas only for active stroke */}
+      {/* Canvas for active stroke */}
       <canvas
         ref={canvasRef}
         className="absolute top-0 left-0 touch-none"
@@ -411,6 +431,7 @@ export default function Canvas({ width, height }: CanvasProps) {
           WebkitUserSelect: 'none',
           userSelect: 'none',
           WebkitTapHighlightColor: 'transparent',
+          backgroundColor: 'transparent',
         }}
       />
     </div>

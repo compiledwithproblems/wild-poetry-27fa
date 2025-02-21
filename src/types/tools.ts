@@ -29,6 +29,13 @@ export interface CanvasElement {
   data: Stroke | Image;
 }
 
+export interface Template {
+  id: string;
+  name: string;
+  description: string;
+  svgPattern: string;
+}
+
 export interface Note {
   id: string;
   title: string;
@@ -36,6 +43,10 @@ export interface Note {
   createdAt: string;
   updatedAt: string;
   tags: Tag[];
+  template: {
+    id: string;
+    options?: Record<string, any>;
+  };
 }
 
 export interface Tag {
@@ -58,4 +69,25 @@ export const TOKYO_NIGHT_COLORS = {
   grey: '#565f89',
 } as const;
 
-export type TokyoNightColor = keyof typeof TOKYO_NIGHT_COLORS; 
+export type TokyoNightColor = keyof typeof TOKYO_NIGHT_COLORS;
+
+// Define our initial templates
+export const TEMPLATES: Template[] = [
+  {
+    id: 'blank',
+    name: 'Blank Page',
+    description: 'A clean, blank canvas for free-form notes',
+    svgPattern: '',
+  },
+  {
+    id: 'college-ruled',
+    name: 'College Ruled',
+    description: 'Traditional lined paper with college rule spacing',
+    svgPattern: `
+      <pattern id="college-ruled" patternUnits="userSpaceOnUse" width="100%" height="25">
+        <line x1="0" y1="24" x2="100%" y2="24" stroke="#565f89" stroke-width="0.5" stroke-opacity="0.2"/>
+      </pattern>
+      <rect width="100%" height="100%" fill="url(#college-ruled)"/>
+    `,
+  },
+]; 

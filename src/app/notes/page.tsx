@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Note, Tag, TOKYO_NIGHT_COLORS } from '@/types/tools';
+import { Note, Tag, TOKYO_NIGHT_COLORS, TEMPLATES } from '@/types/tools';
 import { 
   PlusIcon, 
   XMarkIcon, 
@@ -28,6 +28,7 @@ export default function NotesPage() {
   const [editingTitle, setEditingTitle] = useState('');
   const [editingTags, setEditingTags] = useState<Tag[]>([]);
   const [editTagName, setEditTagName] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState(TEMPLATES[0]); // Default to blank template
 
   // Get all unique tags from notes
   const availableTags = useMemo(() => {
@@ -95,6 +96,9 @@ export default function NotesPage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       tags: selectedTags,
+      template: {
+        id: selectedTemplate.id
+      }
     };
 
     // Save to localStorage
@@ -388,6 +392,8 @@ export default function NotesPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-[#1f2335] rounded-lg p-6 w-full max-w-md">
             <h2 className="text-[#c0caf5] text-xl font-semibold mb-4">Create New Note</h2>
+            
+            {/* Title Input */}
             <input
               type="text"
               value={newNoteTitle}
@@ -401,6 +407,30 @@ export default function NotesPage() {
               }}
             />
 
+            {/* Template Selection */}
+            <div className="mb-4">
+              <label className="text-[#c0caf5] text-sm font-medium mb-2 block">
+                Choose Template
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {TEMPLATES.map(template => (
+                  <button
+                    key={template.id}
+                    onClick={() => setSelectedTemplate(template)}
+                    className={`p-4 rounded-lg border-2 transition-colors ${
+                      selectedTemplate.id === template.id
+                        ? 'border-[#7aa2f7] bg-[#292e42]'
+                        : 'border-[#292e42] hover:border-[#414868]'
+                    }`}
+                  >
+                    <h3 className="text-[#c0caf5] font-medium mb-1">{template.name}</h3>
+                    <p className="text-[#565f89] text-sm">{template.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tag Section */}
             <div className="mb-4">
               <div className="flex gap-2 mb-2">
                 <input
@@ -418,7 +448,8 @@ export default function NotesPage() {
                 />
                 <button
                   onClick={handleAddTag}
-                  className="px-4 py-2 bg-[#414868] text-[#c0caf5] rounded-lg hover:bg-[#506187] transition-colors"
+                  disabled={selectedTags.length >= 4}
+                  className="px-4 py-2 bg-[#414868] text-[#c0caf5] rounded-lg hover:bg-[#506187] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Add
                 </button>
@@ -450,12 +481,14 @@ export default function NotesPage() {
               )}
             </div>
 
+            {/* Action Buttons */}
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => {
                   setIsCreateModalOpen(false);
                   setSelectedTags([]);
                   setNewTagName('');
+                  setSelectedTemplate(TEMPLATES[0]);
                 }}
                 className="px-4 py-2 rounded-lg text-[#565f89] hover:bg-[#292e42] transition-colors"
               >
