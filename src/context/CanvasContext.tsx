@@ -1,6 +1,8 @@
-import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
 import { Tool, Stroke, Point, TOKYO_NIGHT_COLORS, CanvasElement, Note } from '@/types/tools';
 import { getStroke } from 'perfect-freehand';
+import { dbHelpers } from '@/services/db';
+import { useRouter } from 'next/navigation';
 
 // Configuration for Perfect Freehand
 const getPerfectFreehandOptions = (width: number) => ({
@@ -62,7 +64,7 @@ interface CanvasContextType {
   saveNote: () => void;
   redrawCanvas: (canvas: HTMLCanvasElement | null, erasedStrokeIds?: number[]) => void;
   loadNote: (noteId: string) => void;
-  createNewNote: () => Note;
+  createNewNote: () => Promise<Note>;
   deleteNote: (noteId: string) => void;
   isErasing: boolean;
   setIsErasing: (isErasing: boolean) => void;
@@ -87,13 +89,59 @@ export function CanvasProvider({
   const [currentNote, setCurrentNote] = useState<Note | null>(null);
   const [isErasing, setIsErasing] = useState(false);
   const [erasedStrokes, setErasedStrokes] = useState<number[]>([]);
+  const isLoadingRef = useRef(false);
+  const router = useRouter();
+
+  const loadNote = useCallback(async (noteId: string) => {
+    if (isLoadingRef.current) return; // Prevent duplicate loads
+    isLoadingRef.current = true;
+    
+    console.log('🔍 Starting load operation for note:', noteId);
+    
+    try {
+      // Try to load from IndexedDB first
+      const note = await dbHelpers.getNote(noteId);
+      if (!note) {
+        console.log('⚠️ Note not found in IndexedDB, checking localStorage');
+        // Only check localStorage if not in IndexedDB
+        const notes = JSON.parse(localStorage.getItem('notes') || '[]');
+        const localNote = notes.find((n: Note) => n.id === noteId);
+        
+        if (!localNote) {
+          console.log('⚠️ Note not found in either storage');
+          return;
+        }
+        
+        setCurrentNote(localNote);
+        const strokes = localNote.elements
+          .filter((element: CanvasElement) => element.type === 'stroke')
+          .map((element: CanvasElement) => element.data as Stroke);
+        
+        setCurrentStrokes(strokes);
+        setErasedStrokes([]);
+        console.log('✅ Note loaded from localStorage');
+        return;
+      }
+
+      // If we have a note, get its strokes
+      const strokes = await dbHelpers.getStrokes(noteId);
+      setCurrentNote(note);
+      setCurrentStrokes(strokes);
+      setErasedStrokes([]);
+      console.log('✅ Note loaded from IndexedDB');
+    } catch (error) {
+      console.error('❌ Error loading note:', error);
+    } finally {
+      isLoadingRef.current = false;
+    }
+  }, []);
 
   // Load initial note if provided
   useEffect(() => {
-    if (initialNoteId) {
+    if (initialNoteId && !isLoadingRef.current && !currentNote) {
       loadNote(initialNoteId);
     }
-  }, [initialNoteId]);
+  }, [initialNoteId, loadNote, currentNote]);
 
   const handleSetCurrentTool = useCallback((tool: Tool) => {
     console.log('CanvasContext: Changing tool from', currentTool, 'to', tool);
@@ -108,10 +156,10 @@ export function CanvasProvider({
     setCurrentStrokes(prev => prev.filter(stroke => !strokeIds.includes(stroke.id)));
   }, []);
 
-  const saveNote = useCallback(() => {
+  const saveNote = useCallback(async () => {
     if (!currentNote) return;
 
-    console.log('Saving note:', { 
+    console.log('💾 Starting save operation for note:', { 
       noteId: currentNote.id, 
       strokeCount: currentStrokes.length 
     });
@@ -125,39 +173,40 @@ export function CanvasProvider({
       updatedAt: new Date().toISOString(),
     };
 
-    // Save to localStorage
-    const notes = JSON.parse(localStorage.getItem('notes') || '[]');
-    const noteIndex = notes.findIndex((note: Note) => note.id === currentNote.id);
-    
-    if (noteIndex >= 0) {
-      notes[noteIndex] = updatedNote;
-    } else {
-      notes.push(updatedNote);
+    // Save to localStorage (keeping existing functionality)
+    try {
+      console.log('💾 localStorage: Saving note');
+      const notes = JSON.parse(localStorage.getItem('notes') || '[]');
+      const noteIndex = notes.findIndex((note: Note) => note.id === currentNote.id);
+      
+      if (noteIndex >= 0) {
+        notes[noteIndex] = updatedNote;
+        console.log('📝 localStorage: Updated existing note');
+      } else {
+        notes.push(updatedNote);
+        console.log('📝 localStorage: Added new note');
+      }
+
+      localStorage.setItem('notes', JSON.stringify(notes));
+      console.log('✅ localStorage: Save successful');
+    } catch (error) {
+      console.error('❌ localStorage: Error saving:', error);
     }
 
-    localStorage.setItem('notes', JSON.stringify(notes));
+    // Also save to IndexedDB
+    try {
+      await dbHelpers.saveNote(updatedNote);
+      await dbHelpers.saveStrokes(currentNote.id, currentStrokes);
+    } catch (error) {
+      console.error('❌ IndexedDB: Error saving:', error);
+    }
+
     setCurrentNote(updatedNote);
+    console.log('✅ Save operation completed');
   }, [currentNote, currentStrokes]);
 
-  const loadNote = useCallback((noteId: string) => {
-    console.log('Loading note:', noteId);
-    const notes = JSON.parse(localStorage.getItem('notes') || '[]');
-    const note = notes.find((n: Note) => n.id === noteId);
-    
-    if (note) {
-      setCurrentNote(note);
-      // Extract strokes from note elements
-      const strokes = note.elements
-        .filter((element: CanvasElement) => element.type === 'stroke')
-        .map((element: CanvasElement) => element.data as Stroke);
-      
-      setCurrentStrokes(strokes);
-      setErasedStrokes([]);
-      console.log('Loaded note with', strokes.length, 'strokes');
-    }
-  }, []);
-
-  const createNewNote = useCallback((): Note => {
+  const createNewNote = useCallback(async (): Promise<Note> => {
+    console.log('📝 Creating new note');
     const newNote: Note = {
       id: Date.now().toString(),
       title: `Note ${Date.now()}`,
@@ -170,31 +219,56 @@ export function CanvasProvider({
       }
     };
 
-    // Save to localStorage
-    const notes = JSON.parse(localStorage.getItem('notes') || '[]');
-    notes.push(newNote);
-    localStorage.setItem('notes', JSON.stringify(notes));
+    // Save to both storages
+    try {
+      console.log('💾 Saving new note to both storages');
+      
+      // Save to localStorage
+      const notes = JSON.parse(localStorage.getItem('notes') || '[]');
+      notes.push(newNote);
+      localStorage.setItem('notes', JSON.stringify(notes));
+      console.log('✅ localStorage: New note saved');
+
+      // Save to IndexedDB
+      await dbHelpers.saveNote(newNote);
+      console.log('✅ IndexedDB: New note saved');
+    } catch (error) {
+      console.error('❌ Error saving new note:', error);
+    }
 
     // Set as current note
     setCurrentNote(newNote);
     setCurrentStrokes([]);
     setErasedStrokes([]);
     
-    console.log('Created new note:', newNote.id);
+    console.log('✅ New note created:', newNote.id);
     return newNote;
   }, []);
 
-  const deleteNote = useCallback((noteId: string) => {
+  const deleteNote = useCallback(async (noteId: string) => {
     console.log('Deleting note:', noteId);
-    const notes = JSON.parse(localStorage.getItem('notes') || '[]');
-    const updatedNotes = notes.filter((note: Note) => note.id !== noteId);
-    localStorage.setItem('notes', JSON.stringify(updatedNotes));
-
-    // If current note was deleted, create a new one
-    if (currentNote?.id === noteId) {
-      createNewNote();
+    
+    // Delete from localStorage
+    try {
+      const notes = JSON.parse(localStorage.getItem('notes') || '[]');
+      const updatedNotes = notes.filter((note: Note) => note.id !== noteId);
+      localStorage.setItem('notes', JSON.stringify(updatedNotes));
+    } catch (error) {
+      console.error('Error deleting from localStorage:', error);
     }
-  }, [currentNote, createNewNote]);
+
+    // Delete from IndexedDB
+    try {
+      await dbHelpers.deleteNote(noteId);
+    } catch (error) {
+      console.error('Error deleting from IndexedDB:', error);
+    }
+
+    // If current note was deleted, redirect to homepage
+    if (currentNote?.id === noteId) {
+      router.push('/notes');
+    }
+  }, [currentNote]);
 
   // Auto-save effect
   useEffect(() => {

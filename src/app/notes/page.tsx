@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Note, Tag, TOKYO_NIGHT_COLORS, TEMPLATES } from '@/types/tools';
+import { dbHelpers } from '@/services/db';
 import { 
   PlusIcon, 
   XMarkIcon, 
@@ -86,7 +87,7 @@ export default function NotesPage() {
     };
   }, [isFilterOpen]);
 
-  const handleCreateNote = () => {
+  const handleCreateNote = async () => {
     if (!newNoteTitle.trim()) return;
 
     const newNote: Note = {
@@ -102,9 +103,22 @@ export default function NotesPage() {
     };
 
     // Save to localStorage
-    const notes = JSON.parse(localStorage.getItem('notes') || '[]');
-    notes.push(newNote);
-    localStorage.setItem('notes', JSON.stringify(notes));
+    try {
+      const notes = JSON.parse(localStorage.getItem('notes') || '[]');
+      notes.push(newNote);
+      localStorage.setItem('notes', JSON.stringify(notes));
+      console.log('✅ localStorage: Note saved successfully');
+    } catch (error) {
+      console.error('❌ localStorage: Error saving note:', error);
+    }
+
+    // Save to IndexedDB
+    try {
+      await dbHelpers.saveNote(newNote);
+      console.log('✅ IndexedDB: Note saved successfully');
+    } catch (error) {
+      console.error('❌ IndexedDB: Error saving note:', error);
+    }
 
     // Navigate to canvas with this note
     router.push(`/canvas/${newNote.id}`);
@@ -182,6 +196,32 @@ export default function NotesPage() {
       setNotes(notes);
     }
 
+    setEditingNote(null);
+    setEditingTitle('');
+    setEditingTags([]);
+  };
+
+  const handleDeleteNote = async (noteId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent navigation to canvas
+    
+    // Delete from localStorage
+    try {
+      const notes = JSON.parse(localStorage.getItem('notes') || '[]');
+      const updatedNotes = notes.filter((note: Note) => note.id !== noteId);
+      localStorage.setItem('notes', JSON.stringify(updatedNotes));
+      setNotes(updatedNotes);
+    } catch (error) {
+      console.error('Error deleting from localStorage:', error);
+    }
+
+    // Delete from IndexedDB
+    try {
+      await dbHelpers.deleteNote(noteId);
+    } catch (error) {
+      console.error('Error deleting from IndexedDB:', error);
+    }
+
+    // Close the edit modal and redirect to notes page
     setEditingNote(null);
     setEditingTitle('');
     setEditingTags([]);
@@ -366,6 +406,12 @@ export default function NotesPage() {
             </div>
 
             <div className="flex justify-end gap-2">
+              <button
+                onClick={(e) => handleDeleteNote(editingNote.id, e)}
+                className="px-4 py-2 rounded-lg text-[#f7768e] hover:bg-[#292e42] transition-colors"
+              >
+                Delete
+              </button>
               <button
                 onClick={() => {
                   setEditingNote(null);

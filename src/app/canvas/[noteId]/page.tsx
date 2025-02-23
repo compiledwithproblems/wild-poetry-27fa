@@ -16,10 +16,8 @@ export default function CanvasPage({ params }: { params: Promise<{ noteId: strin
   const { noteId } = use(params);
 
   useEffect(() => {
-    // Verify note exists
-    const notes = JSON.parse(localStorage.getItem('notes') || '[]');
-    const note = notes.find((n: any) => n.id === noteId);
-    if (!note) {
+    // Simple verification that noteId exists
+    if (!noteId) {
       router.push('/notes');
     }
   }, [noteId, router]);

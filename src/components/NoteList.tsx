@@ -33,8 +33,8 @@ export default function NoteList() {
     setNotes(recentNotes);
   }, [currentNote]); // Reload when current note changes
 
-  const handleCreateNote = useCallback(() => {
-    const newNote = createNewNote();
+  const handleCreateNote = useCallback(async () => {
+    const newNote = await createNewNote();
     setNotes(prev => [...prev, newNote]);
     setIsExpanded(true);
   }, [createNewNote]);
