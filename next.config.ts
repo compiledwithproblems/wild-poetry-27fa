@@ -16,7 +16,24 @@ const nextConfig: NextConfig = {
     dest: 'public',
     register: true,
     skipWaiting: true,
-    disable: process.env.NODE_ENV === 'development'
+    disable: process.env.NODE_ENV === 'development',
+    // Add custom service worker configuration
+    runtimeCaching: [
+      {
+        urlPattern: /^https?.*/,
+        handler: 'NetworkFirst',
+        options: {
+          cacheName: 'offlineCache',
+          expiration: {
+            maxEntries: 200
+          }
+        }
+      }
+    ],
+    // Ensure database operations work offline
+    fallbacks: {
+      document: '/offline.html'
+    }
   })({
     images: {
       unoptimized: true
