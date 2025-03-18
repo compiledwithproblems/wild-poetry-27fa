@@ -35,7 +35,7 @@ For the optimal drawing experience, use an iPad with Apple Pencil. The app is sp
 - **Frontend**: Next.js, React, TypeScript, Tailwind CSS
 - **Drawing Engine**: Perfect Freehand for smooth, natural-looking strokes
 - **Storage**: IndexedDB for primary storage, with localStorage fallback
-- **Deployment**: Cloudflare Pages
+- **Deployment**: Vercel
 
 ## Getting Started
 
@@ -78,12 +78,15 @@ yarn build
 
 ## Deployment
 
-Wild Poetry is designed to be deployed to Cloudflare Pages, but can be deployed to any static hosting service:
+Wild Poetry is deployed on Vercel for optimal performance and reliability:
 
 ```bash
+# Deploy to Vercel
 npm run build
-# Then deploy the /out directory to your hosting provider
+vercel --prod
 ```
+
+You can also deploy to any other hosting service that supports Next.js applications.
 
 ## Architecture
 
